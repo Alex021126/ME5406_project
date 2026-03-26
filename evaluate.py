@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from me5406_project.evaluation import evaluate_sac, save_metrics
+from src.evaluation import evaluate_sac, save_metrics
 
 
 def resolve_model_path(model_path: str | None) -> str:
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a trained SAC policy.")
     parser.add_argument("model_path", nargs="?")
     parser.add_argument("--episodes", type=int, default=20)
-    parser.add_argument("--obstacles", type=int, default=3)
+    parser.add_argument("--obstacles", type=int, default=1)
     parser.add_argument("--output", default="")
     parser.add_argument("--device", default=None)
     args = parser.parse_args()

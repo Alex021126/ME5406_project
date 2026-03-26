@@ -5,11 +5,48 @@ from pathlib import Path
 
 import torch
 from stable_baselines3 import SAC
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 
-from .envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+from src.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+
+
+class EpisodeStatusCallback(BaseCallback):
+    def __init__(self):
+        super().__init__()
+        self.episode_count = 0
+
+    def _on_step(self) -> bool:
+        dones = self.locals.get("dones")
+        infos = self.locals.get("infos")
+        if dones is None or infos is None:
+            return True
+
+        for done, info in zip(dones, infos):
+            if not done:
+                continue
+            self.episode_count += 1
+            success = bool(info.get("success", False))
+            collision = bool(info.get("collision", False))
+            initial_distance = info.get("initial_distance")
+            distance = info.get("distance_to_target")
+            reward = info.get("episode", {}).get("r")
+            length = info.get("episode", {}).get("l")
+            initial_distance_text = (
+                f"{initial_distance:.4f}" if isinstance(initial_distance, (int, float)) else "n/a"
+            )
+            distance_text = f"{distance:.4f}" if isinstance(distance, (int, float)) else "n/a"
+            reward_text = f"{reward:.3f}" if isinstance(reward, (int, float)) else "n/a"
+            length_text = str(length) if isinstance(length, int) else "n/a"
+            print(
+                f"Episode {self.episode_count}: "
+                f"success={success} collision={collision} "
+                f"length={length_text} return={reward_text} "
+                f"initial_distance={initial_distance_text} final_distance={distance_text}"
+            )
+        return True
 
 
 def make_env(obstacle_count: int = 3, render_mode: str | None = None):
@@ -25,7 +62,7 @@ def make_env(obstacle_count: int = 3, render_mode: str | None = None):
 
 def train_sac(
     total_timesteps: int = 500_000,
-    obstacle_count: int = 3,
+    obstacle_count: int = 1,
     model_dir: str = "artifacts/models",
     seed: int = 42,
     device: str | None = None,
@@ -61,7 +98,8 @@ def train_sac(
     checkpoint_dir = Path("artifacts/checkpoints")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = CheckpointCallback(save_freq=10_000, save_path=str(checkpoint_dir), name_prefix="sac_arm")
-    model.learn(total_timesteps=total_timesteps, callback=checkpoint, progress_bar=progress_bar)
+    callbacks = [checkpoint, EpisodeStatusCallback()]
+    model.learn(total_timesteps=total_timesteps, callback=callbacks, progress_bar=progress_bar)
 
     model_path = out_dir / f"sac_arm_obs{obstacle_count}_seed{seed}.zip"
     model.save(str(model_path))

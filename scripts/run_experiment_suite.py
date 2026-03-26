@@ -4,9 +4,9 @@ import argparse
 import csv
 from pathlib import Path
 
-from me5406_project.baselines import evaluate_ik_baseline
-from me5406_project.evaluation import evaluate_sac, save_metrics
-from me5406_project.training import train_sac
+from src.baselines import evaluate_ik_baseline
+from src.evaluation import evaluate_sac, save_metrics
+from src.training import train_sac
 
 
 def main() -> None:

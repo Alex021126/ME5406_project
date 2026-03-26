@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from stable_baselines3 import SAC
 
-from .envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+from src.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
 
 
 def evaluate_sac(

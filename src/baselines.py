@@ -6,7 +6,7 @@ from statistics import mean, pstdev
 import mujoco
 import numpy as np
 
-from .envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+from src.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
 
 
 def ik_velocity_baseline(env: ObstacleAvoidanceArmEnv, gain: float = 1.5) -> np.ndarray:

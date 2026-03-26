@@ -17,11 +17,11 @@ This repository implements a course project scaffold for **Obstacle Avoidance Gr
 
 ## Project layout
 
-- `src/me5406_project/assets/arm_3dof.xml`: MuJoCo model.
-- `src/me5406_project/envs/obstacle_avoidance_env.py`: custom environment.
-- `src/me5406_project/training.py`: SAC training entrypoint.
-- `src/me5406_project/evaluation.py`: trained-policy evaluation.
-- `src/me5406_project/baselines.py`: baseline utilities.
+- `src/assets/arm_3dof.xml`: MuJoCo model.
+- `src/envs/obstacle_avoidance_env.py`: custom environment.
+- `src/training.py`: SAC training entrypoint.
+- `src/evaluation.py`: trained-policy evaluation.
+- `src/baselines.py`: baseline utilities.
 - `train.py`: quick training script.
 - `evaluate.py`: evaluation CLI.
 - `visualize.py`: render a trained policy and optionally save a GIF.
@@ -58,16 +58,17 @@ sudo apt install -y libgl1 libglew2.2 libglfw3 libosmesa6
 ## Train
 
 ```bash
-python train.py --timesteps 500000 --obstacles 3 --seed 42
+python train.py --timesteps 500000 --obstacles 1 --seed 42
 ```
 
 This saves a trained model under `artifacts/models/` and intermediate checkpoints under `artifacts/checkpoints/`.
 After changing environment randomization or reward settings, retrain the model instead of reusing older `.zip` files from previous runs.
+Recommended curriculum: train and verify `1` obstacle first, then repeat for `3`, and only then scale to `5`.
 
 ## Evaluate
 
 ```bash
-python evaluate.py artifacts/models/sac_arm_obs3_seed42.zip --episodes 20 --obstacles 3 --output artifacts/results/eval_obs3.json
+python evaluate.py artifacts/models/sac_arm_obs1_seed42.zip --episodes 20 --obstacles 1 --output artifacts/results/eval_obs1.json
 ```
 
 ## Run the experiment suite
@@ -75,7 +76,7 @@ python evaluate.py artifacts/models/sac_arm_obs3_seed42.zip --episodes 20 --obst
 This script trains SAC and evaluates both SAC and the IK baseline for obstacle counts `1 3 5`, then exports JSON and CSV summaries:
 
 ```bash
-python scripts/run_experiment_suite.py --timesteps 50000 --episodes 10 --obstacles 1 3 5
+python scripts/run_experiment_suite.py --timesteps 100000 --episodes 10 --obstacles 1 3 5
 ```
 
 Main outputs:
@@ -95,7 +96,7 @@ mjpython visualize.py --human --obstacles 3
 Save a GIF for your report or presentation:
 
 ```bash
-python visualize.py --obstacles 3 --episodes 1 --save-gif artifacts/results/rollout_obs3.gif
+python visualize.py --obstacles 1 --episodes 1 --save-gif artifacts/results/rollout_obs1.gif
 ```
 
 On macOS, `--human` requires `mjpython` because of MuJoCo's viewer backend. GIF export works with normal `python`.
@@ -105,10 +106,13 @@ On macOS, `--human` requires `mjpython` because of MuJoCo's viewer backend. GIF 
 The proposal leaves several implementation details unspecified. This scaffold makes the following explicit choices:
 
 - Obstacles are represented as spheres with randomized positions in front of the arm.
-- Local obstacle sensing is modeled as three normalized distance readings from the end effector to the nearest active obstacles.
+- Local obstacle sensing is modeled as three normalized distance readings from the nearest active obstacles to the end effector.
 - The action space is continuous joint motor commands in `[-1, 1]`.
 - The target is a point-reaching objective. Gripper closure is not modeled yet.
 - Collision detection focuses on arm-vs-obstacle contacts.
+- Reset logic now samples targets approximately uniformly in a Cartesian workspace box, then filters them by reachability and collision validity, so training/evaluation/visualization share the same reachability-aware scene generator.
+- Reward shaping is intentionally simple: progress toward the goal, a small control penalty, a light near-obstacle penalty, a large collision penalty, and a large success bonus.
+- The current training setup also enforces a larger initial target distance to avoid trivial 1-2 step successes.
 
 ## Suggested next extensions
 
@@ -122,3 +126,4 @@ The proposal leaves several implementation details unspecified. This scaffold ma
 - Include at least one trained model in `artifacts/models/` before submission.
 - Put your final evaluation outputs in `artifacts/results/`.
 - Use `docs/report_outline.md` only as a structure guide; do not copy proposal text directly into the final report.
+- A practical sequence is `obs=1` for debugging, then `obs=3` for the main reported result, and `obs=5` as the harder stress test.

@@ -21,7 +21,11 @@ dependencies = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src", "src.*"]
+
+[tool.setuptools.package-data]
+"src" = ["assets/*.xml"]

@@ -7,7 +7,7 @@ import time
 import torch
 from stable_baselines3 import SAC
 
-from me5406_project.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+from src.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
 
 
 def resolve_model_path(model_path: str | None) -> str:
@@ -23,11 +23,17 @@ def resolve_model_path(model_path: str | None) -> str:
     return str(candidates[-1])
 
 
+def resolve_gif_path(save_gif: str, obstacle_count: int) -> str:
+    if save_gif:
+        return save_gif
+    return f"artifacts/results/rollout_obs{obstacle_count}.gif"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Visualize a trained SAC policy rollout.")
     parser.add_argument("model_path", nargs="?")
     parser.add_argument("--episodes", type=int, default=1)
-    parser.add_argument("--obstacles", type=int, default=3)
+    parser.add_argument("--obstacles", type=int, default=1)
     parser.add_argument("--device", default=None)
     parser.add_argument("--save-gif", default="")
     parser.add_argument("--fps", type=int, default=20)
@@ -37,9 +43,12 @@ def main() -> None:
     args = parser.parse_args()
 
     model_path = resolve_model_path(args.model_path)
+    save_gif = "" if args.human else resolve_gif_path(args.save_gif, args.obstacles)
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print(f"Loading model: {model_path}")
+    if save_gif:
+        print(f"GIF output: {save_gif}")
 
     render_mode = "human" if args.human else "rgb_array"
     env = ObstacleAvoidanceArmEnv(render_mode=render_mode, config=EnvConfig(obstacle_count=args.obstacles))
@@ -61,7 +70,7 @@ def main() -> None:
                 action, _ = model.predict(obs, deterministic=True)
                 obs, _, done, truncated, info = env.step(action)
                 frame = env.render()
-                if frame is not None and args.save_gif:
+                if frame is not None and save_gif:
                     frames.append(frame)
                 if args.human:
                     time.sleep(1.0 / max(args.fps, 1))
@@ -77,10 +86,10 @@ def main() -> None:
             print(f"Holding viewer open for {args.hold_seconds:.1f}s")
             time.sleep(args.hold_seconds)
 
-        if args.save_gif:
+        if save_gif:
             import imageio.v2 as imageio
 
-            output_path = Path(args.save_gif)
+            output_path = Path(save_gif)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             imageio.mimsave(output_path, frames, fps=args.fps)
             print(f"Saved GIF to {output_path}")
