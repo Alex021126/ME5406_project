@@ -32,12 +32,10 @@ class EnvConfig:
     min_obstacle_ee_distance: float = 0.2
     min_obstacle_target_distance: float = 0.16
     min_obstacle_spacing: float = 0.18
-    reachable_target_samples: int = 200
-    reachable_joint_samples: int = 400
-    min_target_pool_size: int = 64
-    target_x_bounds: tuple[float, float] = (0.35, 0.62)
-    target_y_bounds: tuple[float, float] = (-0.2, 0.2)
-    target_z_bounds: tuple[float, float] = (0.08, 0.26)
+    reachable_target_samples: int = 80
+    target_radius_bounds: tuple[float, float] = (0.38, 0.62)
+    target_yaw_bounds: tuple[float, float] = (-0.55, 0.55)
+    target_pitch_bounds: tuple[float, float] = (-0.15, 0.45)
 
 
 class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
@@ -59,19 +57,15 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
             mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"obstacle_{i}")
             for i in range(5)
         ]
-        self._joint_lower_bounds = np.array([-0.6, -0.45, -0.6], dtype=np.float64)
-        self._joint_upper_bounds = np.array([0.6, 0.45, 0.3], dtype=np.float64)
-        self._base_pos = np.array([0.0, 0.0, 0.04], dtype=np.float64)
-        self._reachable_target_pool = self._build_reachable_target_pool()
+        self._joint_lower_bounds = np.array([-3.14, -1.7, -2.2], dtype=np.float64)
+        self._joint_upper_bounds = np.array([3.14, 1.2, 1.2], dtype=np.float64)
+        self._home_qpos = np.array([0.0, 0.7, -1.35], dtype=np.float64)
+        self._reset_qpos_jitter = np.array([1.2, 0.35, 0.45], dtype=np.float64)
+        self._base_pos = np.array([0.0, 0.0, 0.24], dtype=np.float64)
 
         obs_dim = 3 + 3 + 3 + 1 + 3
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(obs_dim,),
-            dtype=np.float32,
-        )
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
 
         self._step_count = 0
         self._prev_distance = 0.0
@@ -81,16 +75,12 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
-
         self._sample_valid_scene()
-
         self._step_count = 0
         self._prev_distance = self._target_distance()
         self._prev_action = np.zeros(3, dtype=np.float64)
         self._initial_distance = self._prev_distance
-        obs = self._get_obs()
-        info = self._get_info()
-        return obs, info
+        return self._get_obs(), self._get_info()
 
     def step(self, action: np.ndarray):
         action = np.clip(action, -1.0, 1.0).astype(np.float64)
@@ -105,10 +95,9 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
         info = self._get_info()
 
         distance = info["distance_to_target"]
-        distance_reward = self.config.distance_reward_scale * (self._prev_distance - distance)
+        reward = self.config.distance_reward_scale * (self._prev_distance - distance)
         self._prev_distance = distance
 
-        reward = distance_reward
         reward -= self.config.time_penalty
         reward -= self.config.action_penalty * float(np.sum(np.square(action)))
         reward -= self._clearance_penalty(info["min_obstacle_clearance"])
@@ -173,22 +162,20 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
         return float(np.linalg.norm(self.data.mocap_pos[0] - self.data.site_xpos[self.ee_site_id]))
 
     def _place_target(self) -> None:
-        candidate = self._sample_reachable_target()
+        candidate = self._sample_workspace_target()
         if candidate is not None:
             self.data.mocap_pos[0] = candidate
-            self.data.mocap_quat[0] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
-            return
-        self.data.mocap_pos[0] = np.array([0.55, 0.0, 0.2], dtype=np.float64)
+        else:
+            self.data.mocap_pos[0] = np.array([0.48, 0.0, 0.42], dtype=np.float64)
         self.data.mocap_quat[0] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
     def _place_obstacles(self) -> None:
-        active = self.config.obstacle_count
         placed_positions: list[np.ndarray] = []
         ee_pos = self.data.site_xpos[self.ee_site_id].copy()
         target_pos = self.data.mocap_pos[0].copy()
 
-        for i, body_id in enumerate(self.obstacle_body_ids):
-            if i < active:
+        for i in range(len(self.obstacle_body_ids)):
+            if i < self.config.obstacle_count:
                 pos = self._sample_obstacle_position(ee_pos, target_pos, placed_positions)
                 placed_positions.append(pos)
             else:
@@ -197,7 +184,7 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
             self.data.mocap_quat[1 + i] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
     def _sample_valid_scene(self) -> None:
-        default_qpos = np.array([0.0, 0.2, -0.35], dtype=np.float64)
+        fallback_qpos = np.array([0.0, 0.7, -1.2], dtype=np.float64)
         for _ in range(self.config.max_reset_tries):
             self.data.qpos[:] = self._sample_joint_configuration()
             self.data.qvel[:] = 0.0
@@ -207,24 +194,46 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
             self._place_obstacles()
             mujoco.mj_forward(self.model, self.data)
 
-            if (
-                not self._has_collision()
-                and self._target_distance() >= self.config.min_target_ee_distance
-            ):
+            if not self._has_collision() and self._target_distance() >= self.config.min_target_ee_distance:
                 return
 
-        self.data.qpos[:] = default_qpos
+        self.data.qpos[:] = fallback_qpos
         self.data.qvel[:] = 0.0
         mujoco.mj_forward(self.model, self.data)
-        self.data.mocap_pos[0] = np.array([0.55, 0.0, 0.2], dtype=np.float64)
+        self.data.mocap_pos[0] = np.array([0.48, 0.0, 0.42], dtype=np.float64)
         self.data.mocap_quat[0] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
         for i in range(self.config.obstacle_count):
-            self.data.mocap_pos[1 + i] = np.array([0.28 + 0.1 * i, (-1) ** i * 0.12, 0.16], dtype=np.float64)
+            self.data.mocap_pos[1 + i] = np.array([0.32 + 0.1 * i, (-1) ** i * 0.12, 0.24], dtype=np.float64)
             self.data.mocap_quat[1 + i] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
         for i in range(self.config.obstacle_count, len(self.obstacle_body_ids)):
             self.data.mocap_pos[1 + i] = np.array([2.0 + i, 2.0, 2.0], dtype=np.float64)
             self.data.mocap_quat[1 + i] = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float64)
         mujoco.mj_forward(self.model, self.data)
+
+    def _sample_joint_configuration(self) -> np.ndarray:
+        low = np.maximum(self._joint_lower_bounds, self._home_qpos - self._reset_qpos_jitter)
+        high = np.minimum(self._joint_upper_bounds, self._home_qpos + self._reset_qpos_jitter)
+        return self.np_random.uniform(low=low, high=high)
+
+    def _sample_workspace_target(self) -> np.ndarray | None:
+        current_ee = self.data.site_xpos[self.ee_site_id].copy()
+        for _ in range(self.config.reachable_target_samples):
+            candidate = self._sample_spherical_target()
+            if np.linalg.norm(candidate - self._base_pos) < self.config.min_target_base_distance:
+                continue
+            if np.linalg.norm(candidate - current_ee) < self.config.min_target_ee_distance:
+                continue
+            return candidate
+        return None
+
+    def _sample_spherical_target(self) -> np.ndarray:
+        radius = self.np_random.uniform(*self.config.target_radius_bounds)
+        yaw = self.np_random.uniform(*self.config.target_yaw_bounds)
+        pitch = self.np_random.uniform(*self.config.target_pitch_bounds)
+        x = radius * np.cos(pitch) * np.cos(yaw)
+        y = radius * np.cos(pitch) * np.sin(yaw)
+        z = self._base_pos[2] + radius * np.sin(pitch)
+        return np.array([x, y, z], dtype=np.float64)
 
     def _sample_obstacle_position(
         self,
@@ -235,9 +244,9 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
         for _ in range(self.config.max_reset_tries):
             candidate = np.array(
                 [
-                    self.np_random.uniform(0.2, 0.52),
+                    self.np_random.uniform(0.2, 0.56),
                     self.np_random.uniform(-0.2, 0.2),
-                    self.np_random.uniform(0.06, 0.3),
+                    self.np_random.uniform(0.1, 0.45),
                 ],
                 dtype=np.float64,
             )
@@ -249,55 +258,10 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
                 continue
             return candidate
 
-        fallback_offset = np.array([0.35, 0.18 if not placed_positions else -0.18, 0.18], dtype=np.float64)
+        candidate = np.array([0.34, 0.18 if not placed_positions else -0.18, 0.28], dtype=np.float64)
         if placed_positions:
-            fallback_offset[0] += 0.08 * len(placed_positions)
-        return fallback_offset
-
-    def _sample_joint_configuration(self) -> np.ndarray:
-        return self.np_random.uniform(low=self._joint_lower_bounds, high=self._joint_upper_bounds)
-
-    def _sample_reachable_target(self) -> np.ndarray | None:
-        current_ee = self.data.site_xpos[self.ee_site_id].copy()
-
-        if len(self._reachable_target_pool) == 0:
-            return None
-
-        indices = self.np_random.permutation(len(self._reachable_target_pool))
-        for idx in indices:
-            candidate = self._reachable_target_pool[idx]
-            if np.linalg.norm(candidate - current_ee) < self.config.min_target_ee_distance:
-                continue
-            if np.linalg.norm(candidate - self._base_pos) < self.config.min_target_base_distance:
-                continue
-            return candidate.copy()
-
-        return None
-
-    def _build_reachable_target_pool(self) -> np.ndarray:
-        accepted: list[np.ndarray] = []
-        for _ in range(self.config.reachable_target_samples):
-            candidate = np.array(
-                [
-                    self.np_random.uniform(*self.config.target_x_bounds),
-                    self.np_random.uniform(*self.config.target_y_bounds),
-                    self.np_random.uniform(*self.config.target_z_bounds),
-                ],
-                dtype=np.float64,
-            )
-            if np.linalg.norm(candidate - self._base_pos) < self.config.min_target_base_distance:
-                continue
-            if self._target_is_reachable(candidate):
-                accepted.append(candidate)
-
-        if len(accepted) < self.config.min_target_pool_size:
-            accepted.extend(self._fallback_target_pool())
-
-        if not accepted:
-            return np.empty((0, 3), dtype=np.float64)
-
-        rounded = np.unique(np.round(np.asarray(accepted, dtype=np.float64), decimals=3), axis=0)
-        return rounded
+            candidate[0] += 0.08 * len(placed_positions)
+        return candidate
 
     def _local_obstacle_sensors(self) -> np.ndarray:
         ee_pos = self.data.site_xpos[self.ee_site_id]
@@ -305,8 +269,7 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
         active = min(self.config.obstacle_count, len(self.obstacle_body_ids))
         for i in range(active):
             obstacle_pos = self.data.mocap_pos[1 + i]
-            distance = np.linalg.norm(obstacle_pos - ee_pos) - self.config.obstacle_radius
-            distances.append(distance)
+            distances.append(np.linalg.norm(obstacle_pos - ee_pos) - self.config.obstacle_radius)
         distances.sort()
         readings = [np.clip(distance / self.config.sensor_range, 0.0, 1.0) for distance in distances[:3]]
         while len(readings) < 3:
@@ -329,37 +292,6 @@ class ObstacleAvoidanceArmEnv(gym.Env[np.ndarray, np.ndarray]):
         if gap <= 0.0:
             return 0.0
         return self.config.clearance_penalty_scale * gap
-
-    def _target_is_reachable(self, target: np.ndarray) -> bool:
-        original_qpos = self.data.qpos[:3].copy()
-        original_qvel = self.data.qvel[:3].copy()
-
-        try:
-            for _ in range(self.config.reachable_joint_samples):
-                self.data.qpos[:] = self._sample_joint_configuration()
-                self.data.qvel[:] = 0.0
-                mujoco.mj_forward(self.model, self.data)
-                if np.linalg.norm(self.data.site_xpos[self.ee_site_id] - target) <= 0.1:
-                    return True
-        finally:
-            self.data.qpos[:] = original_qpos
-            self.data.qvel[:] = original_qvel
-            mujoco.mj_forward(self.model, self.data)
-
-        return False
-
-    def _fallback_target_pool(self) -> list[np.ndarray]:
-        xs = np.linspace(0.4, 0.58, 4)
-        ys = np.linspace(-0.16, 0.16, 4)
-        zs = np.linspace(0.1, 0.24, 3)
-        pool: list[np.ndarray] = []
-        for x in xs:
-            for y in ys:
-                for z in zs:
-                    candidate = np.array([x, y, z], dtype=np.float64)
-                    if np.linalg.norm(candidate - self._base_pos) >= self.config.min_target_base_distance:
-                        pool.append(candidate)
-        return pool
 
     def _has_collision(self) -> bool:
         for i in range(self.data.ncon):
