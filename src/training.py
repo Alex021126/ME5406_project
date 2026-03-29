@@ -105,3 +105,38 @@ def train_sac(
     model.save(str(model_path))
     env.close()
     return model_path
+
+
+def resume_sac(
+    checkpoint_path: str,
+    total_timesteps: int = 100_000,
+    obstacle_count: int = 1,
+    output_path: str | None = None,
+    device: str | None = None,
+) -> Path:
+    tensorboard_log = "artifacts/tb" if importlib.util.find_spec("tensorboard") is not None else None
+    progress_bar = (
+        importlib.util.find_spec("tqdm") is not None and importlib.util.find_spec("rich") is not None
+    )
+    resolved_device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {resolved_device}")
+
+    env = make_vec_env(make_env(obstacle_count=obstacle_count), n_envs=1)
+    model = SAC.load(checkpoint_path, env=env, device=resolved_device)
+    model.tensorboard_log = tensorboard_log
+
+    checkpoint_dir = Path("artifacts/checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = CheckpointCallback(save_freq=10_000, save_path=str(checkpoint_dir), name_prefix="sac_arm_resume")
+    callbacks = [checkpoint, EpisodeStatusCallback()]
+    model.learn(total_timesteps=total_timesteps, callback=callbacks, progress_bar=progress_bar, reset_num_timesteps=False)
+
+    if output_path is None:
+        source = Path(checkpoint_path)
+        output = source.with_name(f"{source.stem}_resumed.zip")
+    else:
+        output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    model.save(str(output))
+    env.close()
+    return output

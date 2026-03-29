@@ -23,8 +23,10 @@ This repository implements a course project scaffold for **Obstacle Avoidance Gr
 - `src/evaluation.py`: trained-policy evaluation.
 - `src/baselines.py`: baseline utilities.
 - `train.py`: quick training script.
+- `resume_train.py`: continue training from an existing SAC checkpoint.
 - `evaluate.py`: evaluation CLI.
 - `visualize.py`: render a trained policy and optionally save a GIF.
+- `scripts/visualize_workspace.py`: sample and visualize the arm workspace.
 - `scripts/run_experiment_suite.py`: train/evaluate SAC and IK across obstacle densities.
 - `requirements.txt` and `environment.yml`: reproducible environments.
 - `docs/report_outline.md`: individual report starter.
@@ -65,6 +67,12 @@ This saves a trained model under `artifacts/models/` and intermediate checkpoint
 After changing environment randomization or reward settings, retrain the model instead of reusing older `.zip` files from previous runs.
 Recommended curriculum: train and verify `1` obstacle first, then repeat for `3`, and only then scale to `5`.
 
+## Resume training
+
+```bash
+python resume_train.py artifacts/models/sac_arm_obs1_seed42.zip --timesteps 100000 --obstacles 1
+```
+
 ## Evaluate
 
 ```bash
@@ -100,6 +108,14 @@ python visualize.py --obstacles 1 --episodes 1 --save-gif artifacts/results/roll
 ```
 
 On macOS, `--human` requires `mjpython` because of MuJoCo's viewer backend. GIF export works with normal `python`.
+
+## Visualize the workspace
+
+Generate a 3D scatter plot of sampled end-effector positions:
+
+```bash
+python scripts/visualize_workspace.py --samples 3000 --output artifacts/results/workspace_scatter.png
+```
 
 ## Design assumptions
 

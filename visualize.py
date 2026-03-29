@@ -32,7 +32,7 @@ def resolve_gif_path(save_gif: str, obstacle_count: int) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Visualize a trained SAC policy rollout.")
     parser.add_argument("model_path", nargs="?")
-    parser.add_argument("--episodes", type=int, default=1)
+    parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--obstacles", type=int, default=1)
     parser.add_argument("--device", default=None)
     parser.add_argument("--save-gif", default="")
