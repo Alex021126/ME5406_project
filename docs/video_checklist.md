@@ -1,6 +1,6 @@
 # Video Checklist
 
-The final group video should make it easy for the grader to see the task, the method, and the outcome quickly.
+The final group video should present the task setup, method, and outcomes in a clear and concise sequence.
 
 ## Recommended structure
 
@@ -12,9 +12,9 @@ The final group video should make it easy for the grader to see the task, the me
 6. One slide with a compact metrics table.
 7. One slide with limitations and future work.
 
-## Capture tips
+## Recording notes
 
-- Keep clips short and focused.
+- Keep clips concise and focused.
 - Use fixed camera angles for easier visual comparison.
 - Put success/failure text overlays directly on the video if possible.
 - Make sure the trained model file used in the video matches the one shipped in the submission zip.

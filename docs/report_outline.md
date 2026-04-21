@@ -1,6 +1,6 @@
 # Individual Report Outline
 
-Use this as a clean starting structure for the 10-page individual report. Rewrite everything in your own words.
+Use this as a reference structure for the 10-page individual report. Adapt the content to match your own implementation details and analysis.
 
 ## 1. Introduction
 

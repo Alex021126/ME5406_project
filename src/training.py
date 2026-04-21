@@ -11,6 +11,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 from src.envs.obstacle_avoidance_env import EnvConfig, ObstacleAvoidanceArmEnv
+from src.policies import GoalConditionedSplitFeatureExtractor, SplitObservationFeatureExtractor
 
 
 class GoalMonitor(Monitor):
@@ -86,8 +87,23 @@ def train_sac(
     print(f"Using device: {resolved_device}")
 
     env = DummyVecEnv([make_env(obstacle_count=obstacle_count, goal_conditioned=use_her)])
+    probe_env = ObstacleAvoidanceArmEnv(config=EnvConfig(obstacle_count=obstacle_count), goal_conditioned=use_her)
+    joint_count = int(probe_env.model.nu)
+    probe_env.close()
     policy = "MultiInputPolicy" if use_her else "MlpPolicy"
     replay_buffer_kwargs = {"n_sampled_goal": 4, "goal_selection_strategy": "future"} if use_her else None
+    if use_her:
+        policy_kwargs = {
+            "features_extractor_class": GoalConditionedSplitFeatureExtractor,
+            "features_extractor_kwargs": {"joint_count": joint_count},
+            "net_arch": {"pi": [256, 256], "qf": [256, 256]},
+        }
+    else:
+        policy_kwargs = {
+            "features_extractor_class": SplitObservationFeatureExtractor,
+            "features_extractor_kwargs": {"joint_count": joint_count},
+            "net_arch": {"pi": [256, 256], "qf": [256, 256]},
+        }
     model = SAC(
         policy,
         env,
@@ -103,7 +119,7 @@ def train_sac(
         replay_buffer_class=HerReplayBuffer if use_her else None,
         replay_buffer_kwargs=replay_buffer_kwargs,
         tensorboard_log=tensorboard_log,
-        policy_kwargs={"net_arch": {"pi": [256, 256], "qf": [256, 256]}},
+        policy_kwargs=policy_kwargs,
         seed=seed,
         device=resolved_device,
     )
