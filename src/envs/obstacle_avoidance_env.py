@@ -14,7 +14,7 @@ class EnvConfig:
     control_dt: float = 0.05
     episode_steps: int = 150
     goal_tolerance: float = 0.07
-    sensor_range: float = 0.65
+    sensor_range: float = 0.50
     obstacle_count: int = 3
     action_scale: float = 1.0
     distance_reward_scale: float = 10.0
@@ -318,16 +318,45 @@ class ObstacleAvoidanceArmEnv(gym.Env):
         return candidate
 
     def _local_obstacle_sensors(self) -> np.ndarray:
-        ee_pos = self.data.site_xpos[self.ee_site_id]
-        distances = []
-        active = min(self.config.obstacle_count, len(self.obstacle_body_ids))
-        for i in range(active):
-            obstacle_pos = self.data.mocap_pos[1 + i]
-            distances.append(np.linalg.norm(obstacle_pos - ee_pos) - self.config.obstacle_radius)
-        distances.sort()
-        readings = [np.clip(distance / self.config.sensor_range, 0.0, 1.0) for distance in distances[:3]]
-        while len(readings) < 3:
-            readings.append(1.0)
+        # Three local range beams are cast around the end-effector frame.
+        # Each reading is normalized to [0, 1], where 1 means no obstacle
+        # detected within sensor_range.
+        ee_pos = self.data.site_xpos[self.ee_site_id].copy()
+        ee_rot = self.data.site_xmat[self.ee_site_id].reshape(3, 3).copy()
+        local_dirs = (
+            np.array([1.0, 0.0, 0.0], dtype=np.float64),
+            np.array([0.866, 0.5, 0.0], dtype=np.float64),
+            np.array([0.866, -0.5, 0.0], dtype=np.float64),
+        )
+        body_exclude = int(self.model.site_bodyid[self.ee_site_id])
+        geomid = np.array([-1], dtype=np.int32)
+        readings: list[float] = []
+
+        for local_dir in local_dirs:
+            ray_dir = ee_rot @ local_dir
+            norm = float(np.linalg.norm(ray_dir))
+            if norm <= 1e-12:
+                readings.append(1.0)
+                continue
+            ray_dir = ray_dir / norm
+            ray_start = ee_pos + 0.01 * ray_dir
+            geomid[0] = -1
+            ray_distance = mujoco.mj_ray(
+                self.model,
+                self.data,
+                ray_start,
+                ray_dir,
+                None,
+                1,
+                body_exclude,
+                geomid,
+            )
+            if ray_distance < 0.0 or ray_distance > self.config.sensor_range:
+                clipped_distance = self.config.sensor_range
+            else:
+                hit_name = self.model.geom(int(geomid[0])).name or ""
+                clipped_distance = ray_distance if hit_name.startswith("obstacle_") else self.config.sensor_range
+            readings.append(float(np.clip(clipped_distance / self.config.sensor_range, 0.0, 1.0)))
         return np.asarray(readings, dtype=np.float64)
 
     def _min_obstacle_clearance(self) -> float:

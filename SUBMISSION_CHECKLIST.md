@@ -1,6 +1,6 @@
 # Submission Checklist
 
-Before zipping the project for Canvas, make sure the final package contains:
+Before packaging the project for Canvas, ensure the final submission includes:
 
 - Source code folder with all Python modules and MuJoCo assets.
 - `train.py` and `evaluate.py`.
