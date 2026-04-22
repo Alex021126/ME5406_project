@@ -1,0 +1,15 @@
+{
+  "episodes": 10,
+  "obstacle_count": 5,
+  "success_rate": 0,
+  "collision_rate": 0.8,
+  "mean_return": -65.36445863614202,
+  "return_std": 11.883293109065145,
+  "mean_episode_steps": 33.4,
+  "step_std": 58.32700918099607,
+  "mean_planning_latency_sec": 0.0012831250962335617,
+  "mean_first_action_latency_sec": 4.5420898823067545e-05,
+  "mean_action_variance": 0.011121771548096297,
+  "mean_action_delta_variance": 0.006973654366435794,
+  "planner_solved_rate": 1
+}

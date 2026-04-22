@@ -1,0 +1,13 @@
+{
+  "episodes": 10,
+  "obstacle_count": 1,
+  "success_rate": 0.5,
+  "collision_rate": 0.4,
+  "mean_return": 19.325663956861128,
+  "return_std": 81.78001614470449,
+  "mean_episode_steps": 24.5,
+  "step_std": 42.16218685030462,
+  "mean_planning_latency_sec": 0.00010630839969962835,
+  "mean_action_variance": 0.09749202843344609,
+  "mean_action_delta_variance": 0.0485074737306762
+}
