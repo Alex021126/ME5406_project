@@ -38,6 +38,7 @@ def main() -> None:
     parser.add_argument("--device", default=None)
     parser.add_argument("--save-gif", default="")
     parser.add_argument("--fps", type=int, default=20)
+    parser.add_argument("--slowdown", type=int, default=1, help="Repeat each GIF frame this many times.")
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--hold-seconds", type=float, default=5.0)
     parser.add_argument("--human", action="store_true")
@@ -77,7 +78,7 @@ def main() -> None:
                 obs, _, done, truncated, info = env.step(action)
                 frame = env.render()
                 if frame is not None and save_gif:
-                    frames.append(frame)
+                    frames.extend([frame] * max(args.slowdown, 1))
                 if args.human:
                     time.sleep(1.0 / max(args.fps, 1))
                 step += 1
@@ -97,7 +98,7 @@ def main() -> None:
 
             output_path = Path(save_gif)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            imageio.mimsave(output_path, frames, fps=args.fps)
+            imageio.mimsave(output_path, frames, fps=max(args.fps, 1))
             print(f"Saved GIF to {output_path}")
     except RuntimeError as exc:
         message = str(exc)

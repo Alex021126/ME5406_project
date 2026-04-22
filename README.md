@@ -28,7 +28,7 @@ This repository contains the implementation for **Obstacle Avoidance Grasping fo
 - `evaluate.py`: evaluation CLI.
 - `visualize.py`: render a trained policy and optionally save a GIF.
 - `scripts/visualize_workspace.py`: sample and visualize the arm workspace.
-- `scripts/run_experiment_suite.py`: train/evaluate SAC and IK across obstacle densities.
+- `scripts/run_experiment_suite.py`: compare trained SAC/HER, IK, and RRT* across obstacle densities.
 - `requirements.txt` and `environment.yml`: reproducible environments.
 - `docs/report_outline.md`: individual report structure guide.
 - `docs/video_checklist.md`: group video preparation guide.
@@ -82,11 +82,19 @@ python evaluate.py artifacts/models/sac_her_ur5e_obs1_seed42.zip --episodes 20 -
 
 ## Run the experiment suite
 
-This script trains SAC and evaluates SAC, IK, and RRT* baselines for obstacle counts `1 3 5`, then exports JSON and CSV summaries:
+This script evaluates an existing trained SAC/HER model alongside IK and RRT* baselines for obstacle counts `1 3 5`, then exports JSON and CSV summaries:
 
 ```bash
-python scripts/run_experiment_suite.py --timesteps 100000 --episodes 10 --obstacles 1 3 5
+python scripts/run_experiment_suite.py --episodes 10 --obstacles 1
 ```
+
+By default it looks for `artifacts/models/sac_her_ur5e_obs{N}_seed42.zip`. To evaluate one model across all requested obstacle counts:
+
+```bash
+python scripts/run_experiment_suite.py --episodes 10 --obstacles 1 3 --model-path artifacts/models/sac_her_ur5e_obs1_seed42.zip
+```
+
+Add `--train-missing` only if you want the script to train a missing SAC/HER model before evaluation.
 
 Main outputs:
 
@@ -105,10 +113,10 @@ mjpython visualize.py --human --obstacles 3
 Save a GIF for your report or presentation:
 
 ```bash
-python visualize.py --obstacles 1 --episodes 1 --save-gif artifacts/results/rollout_obs1.gif
+mjpython visualize.py artifacts/models/sac_her_ur5e_obs3_seed42.zip --obstacles 3 --episodes 3 --save-gif artifacts/results/rollout_ur5e_obs3_slow.gif --fps 20 --slowdown 3
 ```
 
-On macOS, `--human` requires `mjpython` because of MuJoCo's viewer backend. GIF export works with normal `python`.
+On macOS, `--human` and reliable GIF export should use `mjpython` because of MuJoCo's viewer backend. Use `--slowdown` to repeat frames for slower playback without lowering the GIF frame rate.
 
 ## Visualize the workspace
 
@@ -123,8 +131,8 @@ python scripts/visualize_workspace.py --samples 5000 --output artifacts/results/
 The proposal leaves several implementation details unspecified. This implementation adopts the following explicit design choices:
 
 - Obstacles are represented as spheres with randomized positions in front of the arm.
-- Local obstacle sensing is modeled as three normalized distance readings from the nearest active obstacles to the end effector.
-- The action space is normalized continuous UR5e joint-position increments in `[-1, 1]`, mapped to small per-step position targets.
+- Local obstacle sensing is modeled as three normalized ray-casting beams from the end-effector frame.
+- The action space is normalized continuous UR5e joint-position targets in `[-1, 1]`, mapped to the actuator control range.
 - The target is a point-reaching objective. Gripper closure is not modeled yet.
 - Collision detection focuses on arm-vs-obstacle contacts.
 - Reset logic now samples targets approximately uniformly in a Cartesian workspace box, then filters them by reachability and collision validity, so training/evaluation/visualization share the same reachability-aware scene generator.

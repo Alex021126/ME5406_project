@@ -14,14 +14,30 @@ from src.evaluation import evaluate_sac, save_metrics
 from src.training import train_sac
 
 
+def resolve_model_path(model_path: str | None, model_dir: str, obstacle_count: int, seed: int) -> Path:
+    if model_path:
+        return Path(model_path)
+    return Path(model_dir) / f"sac_her_ur5e_obs{obstacle_count}_seed{seed}.zip"
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train and evaluate SAC across obstacle densities.")
+    parser = argparse.ArgumentParser(description="Evaluate SAC/HER, IK, and RRT* across obstacle densities.")
     parser.add_argument("--timesteps", type=int, default=50_000)
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--obstacles", nargs="+", type=int, default=[1, 3, 5])
     parser.add_argument("--results-dir", default="artifacts/results")
     parser.add_argument("--model-dir", default="artifacts/models")
+    parser.add_argument(
+        "--model-path",
+        default=None,
+        help="Use one trained SAC/HER model for all requested obstacle counts.",
+    )
+    parser.add_argument(
+        "--train-missing",
+        action="store_true",
+        help="Train a SAC/HER model only when the expected model file is missing.",
+    )
     parser.add_argument("--device", default=None)
     parser.add_argument("--skip-rrt", action="store_true", help="Skip RRT* baseline evaluation.")
     args = parser.parse_args()
@@ -32,13 +48,21 @@ def main() -> None:
 
     rows: list[dict] = []
     for obstacle_count in args.obstacles:
-        model_path = train_sac(
-            total_timesteps=args.timesteps,
-            obstacle_count=obstacle_count,
-            model_dir=args.model_dir,
-            seed=args.seed,
-            device=args.device,
-        )
+        model_path = resolve_model_path(args.model_path, args.model_dir, obstacle_count, args.seed)
+        if not model_path.exists():
+            if not args.train_missing:
+                raise SystemExit(
+                    f"Missing trained SAC/HER model: {model_path}\n"
+                    "Pass --model-path, place the model at the expected path, or add --train-missing."
+                )
+            model_path = train_sac(
+                total_timesteps=args.timesteps,
+                obstacle_count=obstacle_count,
+                model_dir=args.model_dir,
+                seed=args.seed,
+                device=args.device,
+                use_her=True,
+            )
         sac_metrics = evaluate_sac(
             str(model_path),
             episodes=args.episodes,
