@@ -21,7 +21,7 @@ def model_uses_goal_conditioning(model_path: str) -> bool:
 
 def evaluate_sac(
     model_path: str,
-    episodes: int = 20,
+    episodes: int = 50,
     obstacle_count: int = 3,
     device: str | None = None,
 ) -> dict:

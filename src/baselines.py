@@ -257,7 +257,7 @@ def run_rrt_star_episode(obstacle_count: int = 3, max_steps: int = 200) -> dict:
     }
 
 
-def evaluate_ik_baseline(episodes: int = 20, obstacle_count: int = 3) -> dict:
+def evaluate_ik_baseline(episodes: int = 50, obstacle_count: int = 3) -> dict:
     runs = [run_ik_episode(obstacle_count=obstacle_count) for _ in range(episodes)]
     returns = [run["return"] for run in runs]
     steps = [run["steps"] for run in runs]
@@ -279,7 +279,7 @@ def evaluate_ik_baseline(episodes: int = 20, obstacle_count: int = 3) -> dict:
     }
 
 
-def evaluate_rrt_star_baseline(episodes: int = 20, obstacle_count: int = 3) -> dict:
+def evaluate_rrt_star_baseline(episodes: int = 50, obstacle_count: int = 3) -> dict:
     runs = [run_rrt_star_episode(obstacle_count=obstacle_count) for _ in range(episodes)]
     returns = [run["return"] for run in runs]
     steps = [run["steps"] for run in runs]

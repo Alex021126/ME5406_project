@@ -23,7 +23,7 @@ def resolve_model_path(model_path: str | None, model_dir: str, obstacle_count: i
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate SAC/HER, IK, and RRT* across obstacle densities.")
     parser.add_argument("--timesteps", type=int, default=50_000)
-    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--episodes", type=int, default=50)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--obstacles", nargs="+", type=int, default=[1, 3, 5])
     parser.add_argument("--results-dir", default="artifacts/results")

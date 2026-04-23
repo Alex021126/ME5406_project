@@ -21,7 +21,7 @@ def resolve_model_path(model_path: str | None) -> str:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a trained SAC policy.")
     parser.add_argument("model_path", nargs="?")
-    parser.add_argument("--episodes", type=int, default=20)
+    parser.add_argument("--episodes", type=int, default=50)
     parser.add_argument("--obstacles", type=int, default=1)
     parser.add_argument("--output", default="")
     parser.add_argument("--device", default=None)
